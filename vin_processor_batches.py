@@ -174,7 +174,7 @@ def remove_blank_rows_from_file(file_path):
         print(f"Post-processing: An unexpected error occurred while processing {file_path}: {e}")
 
 
-def decode_vins_in_batches(vin_list, base_output_filename="decoded_vins_output", max_file_size_mb=500):
+def decode_vins_in_batches(vin_list, base_output_filename="decoded_vins_output", max_file_size_mb=2):
     """
     Decodes a list of VINs in batches using the NHTSA API and saves results incrementally.
 
