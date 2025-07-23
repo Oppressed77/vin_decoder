@@ -1,5 +1,76 @@
 USE [vin_decoder]
 GO
+/****** Object:  StoredProcedure [dbo].[spVinDecode_FromFile]    Script Date: 7/22/2025 10:00:00 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE PROCEDURE [dbo].[spVinDecode_FromFile]
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Create a temporary table to store the VINs
+    CREATE TABLE #VINs (VIN VARCHAR(17));
+
+    -- Use BULK INSERT to load the VINs from the file
+    BEGIN TRY
+        BULK INSERT #VINs
+        FROM 'c:\decoder\vins.txt'
+        WITH (
+            FIELDTERMINATOR = '\n',
+            ROWTERMINATOR = '\n'
+        );
+    END TRY
+    BEGIN CATCH
+        -- Handle exceptions, e.g., file not found, permissions issues
+        PRINT 'Error loading VINs from file: ' + ERROR_MESSAGE();
+        RETURN;
+    END CATCH
+
+    -- Declare variables for the cursor
+    DECLARE @vin VARCHAR(17);
+    DECLARE @ReturnCode VARCHAR(100);
+
+    -- Create a cursor to loop through the VINs
+    DECLARE vin_cursor CURSOR FOR
+    SELECT VIN FROM #VINs;
+
+    OPEN vin_cursor;
+
+    FETCH NEXT FROM vin_cursor INTO @vin;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        -- Execute the original stored procedure for each VIN
+        EXEC [dbo].[spVinDecode_Core]
+            @pass = 1, -- Or some other appropriate value
+            @vin = @vin,
+            @modelYear = NULL, -- Or some other appropriate value
+            @modelYearSource = '', -- Or some other appropriate value
+            @conclusive = 0, -- Or some other appropriate value
+            @Error12 = 0, -- Or some other appropriate value
+            @includeAll = 1, -- Or some other appropriate value
+            @includePrivate = 1, -- Or some other appropriate value
+            @includeNotPublicilyAvailable = 1, -- Or some other appropriate value
+            @ReturnCode = @ReturnCode OUTPUT;
+
+        -- You can add logic here to handle the output of each VIN decoding
+        -- For example, print the return code
+        PRINT 'VIN: ' + @vin + ', Return Code: ' + @ReturnCode;
+
+        FETCH NEXT FROM vin_cursor INTO @vin;
+    END
+
+    CLOSE vin_cursor;
+    DEALLOCATE vin_cursor;
+
+    -- Drop the temporary table
+    DROP TABLE #VINs;
+END
+GO
+
 /****** Object:  StoredProcedure [dbo].[spVinDecode_Core]    Script Date: 7/22/2025 9:56:05 PM ******/
 SET ANSI_NULLS ON
 GO
