@@ -1,0 +1,615 @@
+USE [vin_decoder]
+GO
+/****** Object:  StoredProcedure [dbo].[spVinDecode_Core]    Script Date: 7/22/2025 9:56:05 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER PROCEDURE [dbo].[spVinDecode_Core]
+	@pass int, 
+	@vin varchar(17), 
+	@modelYear int ,
+	@modelYearSource varchar(20) = '', 
+	@conclusive bit = 0, 
+	@Error12 bit = 0, 
+	@includeAll bit = null, 
+	@includePrivate bit = null, 
+	@includeNotPublicilyAvailable bit = null, 
+	@ReturnCode varchar(100) OUTPUT
+as
+begin
+set @ReturnCode = ''
+
+
+
+
+
+Declare 		
+	@wmi varchar(6) = dbo.fVinWMI(@vin), 
+	@keys varchar(50) = '', 
+	@wmiId int, 
+	@patternId int, 
+	@vinSchemaId int, 
+	@formulaKeys nvarchar(14) = '',
+	@cnt int = 0
+
+declare 
+	@descriptor varchar(17) = dbo.fVinDescriptor(@vin) 
+
+	if LEN(@vin) > 3
+	Begin
+		set @keys = SUBSTRING(@vin, 4, 5)
+		if LEN(@vin) > 9
+			set @keys  = @keys + '|' + SUBSTRING(@vin, 10, 8)
+	end
+
+
+declare 
+	@CorrectedVIN varchar(17), 
+	@ErrorBytes varchar(500), 
+	@AdditionalDecodingInfo varchar(500), 
+	@UnUsedPositions varchar(500)
+
+	select @wmiId = Id from Wmi with (nolock) where Wmi = @wmi and (@includeNotPublicilyAvailable = 1 or (PublicAvailabilityDate <= getdate()))
+	if @wmiid is null
+	begin
+		select @ReturnCode = @ReturnCode + ' 7 ', @CorrectedVIN = '', @ErrorBytes = ''
+	end
+	else
+	begin
+		
+		
+		declare @DecodingItem [tblDecodingItem]
+		
+		INSERT INTO @DecodingItem ([DecodingId], [Source], [CreatedOn], [Priority], [PatternId], [Keys], [VinSchemaId], [WmiId], [ElementId], [AttributeId], [Value], TobeQCed)
+		SELECT 
+			@pass, 
+			'Pattern', 
+			isnull(p.UpdatedOn, p.CreatedOn), 
+			wvs.YearFrom, 
+			p.Id, 
+			upper(p.Keys), 
+			p.VinSchemaId, 
+			wvs.WmiId, 
+			p.ElementId,
+			p.AttributeId, 
+			'XXX', 
+			vs.TobeQCed
+		FROM 
+			dbo.Pattern AS p with (nolock) 
+			INNER JOIN dbo.Element E with (nolock) ON P.ElementId = E.Id
+			INNER JOIN dbo.VinSchema VS with (nolock) on p.VinSchemaId = vs.Id
+			INNER JOIN dbo.Wmi_VinSchema AS wvs with (nolock) ON vs.Id = wvs.VinSchemaId and ((@modelYear  is null) or (@modelYear between wvs.YearFrom and isnull(wvs.YearTo, 2999))) 
+			INNER JOIN dbo.Wmi AS w with (nolock) ON wvs.WmiId = w.Id and w.Wmi = @wmi
+		WHERE   
+			@keys like replace(p.Keys, '*', '_') + '%' 
+			and not p.ElementId in  (26, 27, 29, 39) 
+			and not E.Decode is null 
+			and (isnull(e.IsPrivate, 0) = 0 or @includePrivate = isnull(e.IsPrivate, 0))
+			and (@includeNotPublicilyAvailable = 1 or (w.PublicAvailabilityDate <= getdate()))
+			and (@includeNotPublicilyAvailable = 1 or (isnull(vs.TobeQCed, 0) = 0))
+
+
+		
+		declare @EngineModel varchar(500), @k varchar(50)
+		
+		select top 1 @EngineModel = attributeid, @patternId = PatternId, @vinSchemaId = VinSchemaId, @k = Keys
+		from @DecodingItem 
+		where DecodingId = @pass and ElementId = 18 
+		order by [Priority] desc
+
+		if not @EngineModel is null
+			INSERT INTO @DecodingItem ([DecodingId], [Source], [CreatedOn], [Priority], [PatternId], [Keys], [VinSchemaId], [WmiId], [ElementId], [AttributeId], [Value])
+			SELECT 
+				@pass, 'EngineModelPattern', isnull(p.UpdatedOn, p.CreatedOn), 50, 
+				@patternId, @k, @vinSchemaId, @wmiId, p.ElementId,  
+				p.AttributeId, 'XXX' 
+			FROM 
+				EngineModel em with (nolock) 
+				inner join dbo.EngineModelPattern AS p with (nolock) on em.Id = p.EngineModelId
+				INNER JOIN dbo.Element E with (nolock) ON P.ElementId = E.Id
+			WHERE   
+				em.Name = @EngineModel
+
+		
+		INSERT INTO @DecodingItem ([DecodingId], [Source], CreatedOn, [Priority], [PatternId], [Keys], [VinSchemaId], [WmiId], [ElementId], [AttributeId], [Value])
+		select 
+			@pass, 'VehType', isnull(w.UpdatedOn, w.CreatedOn), 100, 
+			null, upper(@wmi) as keys , null, w.Id as WmiId, 39, 
+			CAST(t.Id as varchar), upper(t.Name) as Value
+		from wmi w with (nolock) 
+			join VehicleType t with (nolock) on t.Id = w.VehicleTypeId
+		where Wmi = @wmi
+			and (@includeNotPublicilyAvailable =1 or (w.PublicAvailabilityDate <= getdate()))
+
+		
+		declare @MfrId int, @MfrName varchar(500)
+		select @MfrId = t.Id, @MfrName = upper(t.Name) 
+		from wmi w with (nolock) 
+			join Manufacturer t with (nolock) on t.Id = w.ManufacturerId
+		where Wmi = @wmi
+			and (@includeNotPublicilyAvailable =1 or (w.PublicAvailabilityDate <= getdate()))
+
+		INSERT INTO @DecodingItem ([DecodingId], [Source], [Priority], [PatternId], [Keys], [VinSchemaId], [WmiId], [ElementId], [AttributeId], [Value])
+		select @pass, 'Manuf. Name', 100, null, upper(@wmi) as keys, null, @WmiId as WmiId, 27, CAST(@MfrId as varchar), @MfrName as Value
+
+		INSERT INTO @DecodingItem ([DecodingId], [Source], [Priority], [PatternId], [Keys], [VinSchemaId], [WmiId], [ElementId], [AttributeId], [Value])
+		select @pass, 'Manuf. Id', 100, null, upper(@wmi) as keys, null, @WmiId AS wMIiD, 157, CAST(@MfrId as varchar), CAST(@MfrId as varchar)
+
+		
+		INSERT INTO @DecodingItem ([DecodingId], [Source], [Priority], [PatternId], [Keys], [VinSchemaId], [WmiId], [ElementId], [AttributeId], [Value])
+		select 
+			@pass, 'ModelYear', 100, 
+			null, @modelYearSource , null, null, 29, 
+			CAST(@modelYear as varchar), CAST(@modelYear as varchar) as Value
+		where not @modelYear is null
+		
+		
+		set @formulaKeys = @keys				
+		set @formulaKeys = replace(@formulaKeys,1,'#')
+		set @formulaKeys = replace(@formulaKeys,2,'#')
+		set @formulaKeys = replace(@formulaKeys,3,'#')
+		set @formulaKeys = replace(@formulaKeys,4,'#')
+		set @formulaKeys = replace(@formulaKeys,5,'#')
+		set @formulaKeys = replace(@formulaKeys,6,'#')
+		set @formulaKeys = replace(@formulaKeys,7,'#')
+		set @formulaKeys = replace(@formulaKeys,8,'#')
+		set @formulaKeys = replace(@formulaKeys,9,'#')
+		set @formulaKeys = replace(@formulaKeys,0,'#')
+
+		INSERT INTO @DecodingItem ([DecodingId], [Source], CreatedOn, [Priority], [PatternId], [Keys], [VinSchemaId], [WmiId], [ElementId], [AttributeId], [Value])
+		select 
+			@pass, 'Formula Pattern', isnull(p.UpdatedOn, p.CreatedOn), 100, 
+			p.Id, p.Keys as Keys, p.VinSchemaId, null, p.ElementId, 
+			p.AttributeId, SUBSTRING(@keys, CHARINDEX('#', p.keys), ((len(p.keys) - charindex('#', REVERSE(p.Keys)) + 1) - (CHARINDEX('#', p.keys)) + 1)) as value
+		FROM  
+			dbo.Pattern AS p with (nolock) 
+			INNER JOIN dbo.Element E with (nolock) ON P.ElementId = E.Id 
+		WHERE   
+			p.VinSchemaId in 
+				( 
+					SELECT wvs.VinSchemaId  
+					FROM dbo.Wmi AS w with (nolock) 
+						INNER JOIN dbo.Wmi_VinSchema AS wvs with (nolock) ON w.Id = wvs.WmiId and ((@modelYear  is null) or (@modelYear between wvs.YearFrom and isnull(wvs.YearTo, 2999))) 
+					WHERE w.Wmi = @wmi and ((@modelYear  is null) or (@modelYear between wvs.YearFrom and isnull(wvs.YearTo, 2999)))
+						and (@includeNotPublicilyAvailable =1 or (w.PublicAvailabilityDate <= getdate()))
+				) 
+			and CHARINDEX('#', p.keys) > 0 
+			and not p.ElementId in  (26, 27, 29, 39) 
+			and @formulaKeys like replace(p.Keys, '*', '_') + '%' 
+
+		
+		delete 
+		from @DecodingItem 
+		where Id IN
+		(
+			SELECT Id FROM 
+			(
+				SELECT d.Id, RANK() OVER (PARTITION BY ElementId ORDER BY Priority DESC, createdon DESC, LEN(REPLACE(ISNULL(D.Keys, ''), '*', '')), ID) AS RankResult
+				FROM @DecodingItem D 
+				
+				WHERE DecodingId = @pass and D.ElementId NOT IN (121, 129, 150, 154, 155, 114, 169, 186)
+			) t WHERE t.RankResult > 1
+		)
+
+		
+		declare @modelId int
+		select @modelId = attributeid from @DecodingItem where DecodingId = @pass and ElementId = 28 
+		
+		if not @modelId is null
+		begin
+			
+			INSERT INTO @DecodingItem ([DecodingId], [Source], [Priority], [PatternId], [Keys], [VinSchemaId], [WmiId], [ElementId], [AttributeId], [Value])
+			SELECT     
+				@pass, 'pattern - model', 1000, 
+				di.PatternId, di.Keys, di.VinSchemaId, null as WmiId, 26 AS ElementId, 
+				mk.Id AS AttributId, upper(mk.Name) AS Value
+			FROM         
+				dbo.Make_Model AS mm with (nolock) 
+				INNER JOIN dbo.Make AS mk with (nolock) ON mm.MakeId = mk.Id 
+				INNER JOIN @DecodingItem AS di ON mm.ModelId = di.AttributeId and di.DecodingId = @pass
+			WHERE     
+				(di.ElementId = 28) 
+				AND (di.DecodingId = @pass)
+		end
+		else
+		begin
+			
+			
+			select @cnt = count(*)
+			from wmi w with (nolock) 
+				join Wmi_Make wm with (nolock) on wm.WmiId = w.Id
+				join Make t with (nolock) on t.Id = wm.MakeId
+			where Wmi = @wmi
+				and (@includeNotPublicilyAvailable = 1 or (w.PublicAvailabilityDate <= getdate()))
+			if @cnt = 1 
+			begin
+				INSERT INTO @DecodingItem ([DecodingId], [Source], [CreatedOn], [Priority], [PatternId], [Keys], [VinSchemaId], [WmiId], [ElementId], [AttributeId], [Value])
+				select 
+					@pass, 'Make', isnull(w.UpdatedOn, w.CreatedOn), -100, 
+					null, @wmi as keys , null, w.Id as WmiId, 26, 
+					CAST(t.Id as varchar), upper(t.Name) as Value
+				from wmi w with (nolock) 
+					join Wmi_Make wm with (nolock) on wm.WmiId = w.Id
+					join Make t with (nolock) on t.Id = wm.MakeId
+				where Wmi = @wmi
+				and (@includeNotPublicilyAvailable = 1 or (w.PublicAvailabilityDate <= getdate()))
+			end
+		end
+
+		
+		
+		
+	declare 
+			@fromElementId int, 
+			@toElementId int,
+			@formula nvarchar(max),
+			@params nvarchar(max),
+			@sql nvarchar(max),
+			@value varchar(500),
+			@conversionId int,
+			@dataType varchar(50)
+			
+			
+			
+
+
+	DECLARE crsr CURSOR STATIC LOCAL FOR
+		SELECT di.Keys, di.ElementId, di.AttributeId, c.ToElementId, c.Formula , c.id, e.DataType, di.PatternId, di.VinSchemaId, di.WmiId
+		FROM @DecodingItem DI 
+			inner join conversion c with (nolock) on di.ElementId = c.FromElementId
+			inner join Element e with (nolock) on c.ToElementId = e.Id
+		where di.DecodingId = @pass
+		ORDER BY di.priority DESC, DI.CreatedOn Desc
+	OPEN crsr
+
+	WHILE 1 = 1
+	BEGIN
+		FETCH crsr INTO @keys, @fromElementId, @value, @toElementId, @formula, @conversionId, @dataType, @patternId, @vinschemaId, @wmiId
+		IF @@fetch_status <> 0
+			BREAK
+
+		
+		IF NOT EXISTS(SELECT 1 FROM @DecodingItem WHERE DecodingId = @pass and  ElementId = @toElementId)
+		BEGIN
+			
+			set @formula = replace(@formula, '#x#', @value)
+
+			if lower(@dataType) = 'decimal'
+				set @dataType = @dataType + '(12, 2)'
+			if lower(@dataType) = 'int'
+				set @formula = ' CONVERT(int, ROUND(' + @formula + ', 0)) '
+
+			set @sql = 'select @result = ' + @formula
+			
+			set @params = N'@result varchar(500) output'
+
+
+			declare @result varchar(500) = ''
+			begin try 
+				exec sp_executesql @sql, @params, @result = @result out
+			end try 
+			begin catch 
+				set @result = '0'
+			end catch 
+			
+			INSERT INTO @DecodingItem ([DecodingId], [Source], [Priority], [PatternId], [Keys], [VinSchemaId], [WmiId], [ElementId], [AttributeId], [Value])
+			values (@pass, left('Conversion ' + CAST(@conversionId as varchar)+ ': ' + @formula, 50), 100, @patternId, @keys, @vinschemaId, @wmiId, @toElementId, @result, @result)
+
+		end
+
+	END
+	DEALLOCATE crsr
+
+
+
+		declare @tVehicleType int
+		select top 1 @tVehicleType = attributeid from @DecodingItem where DecodingId = @pass and elementid = 39
+
+		declare @tmpPatterns table (id int, TobeQCed bit null)
+		declare @tmpPatternsEx table (id int, a int, b int)
+
+		insert into @tmpPatterns 
+		select distinct sp.id, s.TobeQCed
+		from VehicleSpecSchema s with (nolock) 
+			inner join VSpecSchemaPattern sp with (nolock) on s.id = sp.SchemaId
+			inner join VehicleSpecPattern p with (nolock) on sp.Id = p.VSpecSchemaPatternId
+			inner join VehicleSpecSchema_Model vssm with (nolock) on vssm.VehicleSpecSchemaId = s.id
+			left outer join VehicleSpecSchema_Year vssy with (nolock) on vssy.VehicleSpecSchemaId = s.id
+			inner join Wmi_Make wm with (nolock) on wm.MakeId = s.makeid
+			inner join wmi with (nolock) on wmi.id = wm.WmiId
+		where 1 = 1
+			and wmi.wmi = @wmi
+			and s.VehicleTypeId = @tVehicleType
+			and vssm.ModelId = @modelId
+			and (vssy.Year = @modelYear or vssy.Id is null) 
+			and p.IsKey=1
+			and (@includeNotPublicilyAvailable = 1 or (isnull(s.TobeQCed, 0) = 0))
+
+		insert into @tmpPatternsEx (id, a, b) 
+		select 
+			p.VSpecSchemaPatternId, count(*) as cntTotal, count (distinct d.id) as cntMatch
+		from
+			VehicleSpecPattern p with (nolock) 
+			inner join @tmpPatterns ptrn on p.VSpecSchemaPatternId = ptrn.id 
+			left outer join @DecodingItem d on d.DecodingId = @pass and p.ElementId = d.ElementId and p.AttributeId = d.AttributeId
+		where 
+			p.IsKey = 1
+		group by p.VSpecSchemaPatternId
+		having count(*) <> count(distinct d.id)
+
+		delete from @tmpPatterns where id in (select id from @tmpPatternsEx) 
+
+		declare @tbl1 table (
+			IsKey bit, 
+			vSpecSchemaId int, 
+			vSpecPatternId int, 
+			ElementId int, 
+			AttributeId varchar(500), 
+			ChangedOn datetime null,
+			TobeQCed bit null
+		)
+
+		insert into @tbl1 
+			(iskey, vSpecSchemaId, vSpecPatternId, ElementId, AttributeId, ChangedOn, TobeQCed)
+		SELECT distinct
+			vsp.IsKey, vsvp.SchemaId, vsp.vspecschemapatternid, vsp.ElementId, vsp.AttributeId, isnull(vsp.UpdatedOn, vsp.CreatedOn), ptrn.TobeQCed
+		FROM 
+			VehicleSpecPattern vsp with (nolock) 
+			inner join VSpecSchemaPattern vsvp with (nolock) on vsvp.id = vsp.vspecschemapatternid
+			inner join @tmpPatterns ptrn on vsvp.id = ptrn.id
+		WHERE   
+			vsp.IsKey = 0
+			and vsp.ElementId not in (
+				select elementid 
+				from @DecodingItem 
+				where DecodingId = @pass and elementid not in (1, 114, 121, 129, 150, 154, 155, 169, 186)
+			)
+
+		
+		; WITH cte AS (
+			SELECT elementid,
+				row_number() OVER(PARTITION BY elementid order by attributeid) AS [rn]
+			FROM @tbl1  
+		)
+		DELETE cte WHERE [rn] > 1
+
+		INSERT INTO 
+			@DecodingItem ([DecodingId], [Source], [CreatedOn], [Priority], [PatternId], [Keys], [VinSchemaId], [WmiId], [ElementId], [AttributeId], [Value], TobeQCed)
+		SELECT distinct
+			@pass, 'Vehicle Specs', ChangedOn, -100, vSpecPatternId, '', vSpecSchemaId, null, ElementId, AttributeId, 
+			'XXX' 
+			, TobeQCed
+		FROM 
+			@tbl1
+	
+		
+		if (select COUNT(*) from @DecodingItem where DecodingId = @pass and not PatternId is null) = 0
+		begin
+			
+			select @ReturnCode = @ReturnCode + ' 8 ', @CorrectedVIN = '', @ErrorBytes = ''
+		end
+		else
+		begin
+			
+			
+			
+			
+			exec spVinDecode_ErrorCode @vin, @modelYear, @decodingItem
+				, @ReturnCode OUTPUT
+				, @CorrectedVIN OUTPUT
+				, @ErrorBytes OUTPUT
+				, @UnUsedPositions OUTPUT
+		end
+	end 
+
+	
+	if exists(select 1 from @DecodingItem where DecodingId = @pass and ElementId = 5 and AttributeId = 64)
+	begin
+		select @ReturnCode = @ReturnCode + ' 9 '
+	end
+	
+
+	
+	declare @isOffRoad bit = 0 
+	if exists(select 1 from @DecodingItem where ElementId = 5 and AttributeId in (69, 84, 86, 88, 97, 105, 113, 124, 126, 127) and DecodingId = @pass)
+	begin
+		select @ReturnCode = @ReturnCode + ' 10 '
+		set @isOffRoad = 1 
+	end
+	
+
+	
+	If @modelYear is null
+	begin
+		select @ReturnCode = @ReturnCode + ' 11 '
+	end
+
+	
+
+	declare @vehicleType varchar(500) = (select AttributeId from @DecodingItem where DecodingId = @pass and ElementId = 39)
+	
+
+	
+	declare @isVinExceptionCheckDigit bit = 0
+	if exists(select 1 from VinException where VIN = @vin and CheckDigit = 1)
+	begin
+		
+		set @isVinExceptionCheckDigit = 1
+	end
+
+	
+	
+	DECLARE @invalidChars VARCHAR(500) = ''
+	DECLARE @startPos INT = 13 
+		, @x_vehicleTypeId INT, @x_truckTypeId INT, @j INT = 0, @chr varCHAR(10) = ''
+		, @isCarMpvLT bit = 0 
+	IF SUBSTRING(@vin, 3, 1) = '9'
+		SET @startPos = 15 
+	ELSE
+    begin
+		SELECT @x_vehicleTypeId = vehicleTypeId, @x_truckTypeId = truckTypeId FROM dbo.Wmi with (nolock) WHERE wmi = @wmi
+		IF @x_vehicleTypeId IN (2, 7) OR (@x_vehicleTypeId = 3 AND @x_truckTypeId = 1) 
+			select @startPos = 13, @isCarmpvLT = 1 
+		else
+			SET @startPos = 14 
+	end
+	
+	WHILE @j < LEN(@vin)
+	BEGIN
+		SET @j = @j + 1
+		IF @j = 9 and (@isOffRoad = 1 or @isVinExceptionCheckDigit = 1)  
+			CONTINUE;
+		SET @chr = SUBSTRING(@vin, @j, 1)
+		IF 
+			@j <> 9 AND @j < @startPos AND @chr NOT LIKE '[0-9ABCDEFGHJKLMNPRSTUVWXYZ*]' 
+			OR 
+			@j <> 9 AND @j >= @startPos AND @chr NOT LIKE '[0-9*]' 
+			OR 
+			@j = 9  AND @chr NOT LIKE '[0-9X*]' 
+			
+			
+			OR 
+			@j = 10 AND @chr NOT LIKE '[1-9ABCDEFGHJKLMNPRSTVWXY]' 
+		BEGIN
+			IF @chr = ' '
+				SET @chr = '_'
+			IF @CorrectedVIN = ''
+				SET @CorrectedVIN = @vin
+			SET @invalidChars = @invalidChars + ', ' + CAST(@j AS VARCHAR(2)) + ':' + @chr
+			SET @CorrectedVIN = LEFT(@CorrectedVIN, @j-1) + '!' + SUBSTRING(@CorrectedVIN, @j+1, 100)
+		END
+    END
+	IF @invalidChars <> ''
+		set @ReturnCode = @ReturnCode + ' 400 ' 
+	
+
+	 
+	if isnull(@Error12, 0) = 1
+	begin
+		
+		
+		
+			select @ReturnCode = @ReturnCode + ' 12 ' 
+	end
+	
+
+	
+	INSERT INTO @DecodingItem ([DecodingId], [Source], [CreatedOn], [Priority], [PatternId], [Keys], [VinSchemaId], [WmiId], [ElementId], [AttributeId], [Value])
+	SELECT 
+		@pass, 
+		'Default', 
+		isnull(dv.UpdatedOn, dv.CreatedOn),
+		10,		
+		null,	
+		null,	
+		null,	
+		null,	
+		dv.ElementId, 
+		dv.DefaultValue,
+		case when e.datatype='lookup' and dv.DefaultValue = '0' then 'Not Applicable' else 
+		'XXX' 
+		end 
+	FROM 
+		DefaultValue dv with (nolock) 
+		inner join element e with (nolock) on dv.ElementId = e.id
+	where dv.VehicleTypeId = @vehicleType and dv.DefaultValue is not null and dv.elementid not in (select distinct elementid from @DecodingItem where DecodingId = @pass)
+	
+
+	
+	if LEN(@vin) < 17 
+		select @ReturnCode = @ReturnCode + ' 6 '
+	else
+	begin
+		declare @CD char(1) = SUBSTRING(@vin, 9, 1)
+		declare @calcCD char(1) = ''
+		set @calcCD = dbo.[fVINCheckDigit2](@vin, @isCarmpvLT)
+		IF (@cd <> @calcCD) and (@isVinExceptionCheckDigit = 0) 
+			begin	
+				set @ReturnCode = @ReturnCode + ' 1 ' 
+			end
+	END
+	
+
+	
+	declare @errors varchar(100) = @ReturnCode
+	set @errors = replace(@errors, ' 9 ', '')
+	set @errors = replace(@errors, ' 10 ', '')
+	set @errors = replace(@errors, ' 12 ', '')
+	set @errors = ltrim(rtrim(@errors))
+
+	if @errors = '' or @errors = '14'
+		set @ReturnCode = ' 0 ' + @ReturnCode  
+	
+
+	
+	select @cnt = count(*) from @DecodingItem where ElementId = 28
+	if @ReturnCode like '% 0 %' and @cnt = 0
+		select @ReturnCode = @ReturnCode + ' 14 '
+
+
+	if @ReturnCode like '% 4 %'
+		select @AdditionalDecodingInfo = isnull(additionalerrortext,'') from ErrorCode with (nolock) where id = 4
+	if @ReturnCode like '% 5 %'
+		select @AdditionalDecodingInfo = isnull(additionalerrortext,'') from ErrorCode with (nolock) where id = 5
+	if @ReturnCode like '% 14 %'
+		select @AdditionalDecodingInfo = rtrim(ltrim(isnull(@AdditionalDecodingInfo, '') + ' Unused position(s): ' + @UnUsedPositions + '; '))
+	if @ReturnCode like '% 400 %'
+		select @AdditionalDecodingInfo = rtrim(ltrim(isnull(@AdditionalDecodingInfo, '') + ' Invalid character(s): ' + SUBSTRING(@invalidChars, 3, LEN(@invalidChars)-2) + '; '))
+
+	
+	if @vehicleType = 10 or exists(select 1 from @DecodingItem where ElementId = 5 and AttributeId in (65, 107, 70, 74, 63, 72, 112, 62, 64, 76, 78, 71, 77, 67, 116, 75) and DecodingId = @pass)
+		select @AdditionalDecodingInfo = rtrim(ltrim(isnull(@AdditionalDecodingInfo, '') + ' Incomplete Vehicle Warning - Please be advised that the vehicle may have been altered and may not be an accurate representation of the vehicle in its current condition. '))
+
+	if @conclusive = 0 
+		set @AdditionalDecodingInfo = rtrim(ltrim(isnull(@AdditionalDecodingInfo, '') + ' The Model Year decoded for this VIN may be incorrect. If you know the Model year, please enter it and decode again to get more accurate information. '))
+
+
+	declare @offRoadNote varchar(100) = ' NOTE: Disregard if this is an off-road vehicle PIN, as check digit calculation may not be accurate.'
+	declare @checkDigitExclusionNote varchar(150) = ' NOTE: Check Digit Exception - The check digit was given an exception based on data from the OEM indicating an error on production.'
+
+	declare @errorMessages varchar(max) = null
+	declare @errorCodes varchar(500) = null
+	declare @oneError varchar(10) = ''
+	
+	select 
+		@errorMessages = isnull(ltrim(rtrim(@errorMessages)) + '; ' + name, name), 
+		@errorCodes = isnull(ltrim(rtrim(@errorCodes)) + ',' + cast(id as varchar), cast(id as varchar)),
+		@oneError = Id 
+	from 
+		(
+			select id, Name + case 
+				when @isOffRoad = 1 and id = 1 then @offRoadNote 
+				when @isVinExceptionCheckDigit = 1 and id = 0 then @checkDigitExclusionNote 
+				else '' end as Name from ErrorCode with (nolock) 
+		) as t 
+	where @ReturnCode like '% ' + cast(id as varchar) + ' %' 
+	order by id
+
+
+	select @errorMessages = left(@errorMessages, 500)
+
+	INSERT INTO @DecodingItem ([DecodingId], [Source], [Priority], [PatternId], [Keys], [VinSchemaId], [WmiId], [ElementId], [AttributeId], [Value])
+	SELECT 
+		@pass, 'Corrections', 999, 
+		null, '', null, null, p.ElementId, 
+		p.AttributeId, p.Value as Value
+	FROM 
+		(
+			select 142 as ElementId, @CorrectedVIN as AttributeId, @CorrectedVIN as Value
+			union 
+			select 143, @errorCodes, @errorCodes 
+			union 
+			select 191, @errorMessages, @errorMessages 
+			union 
+			select 144, @ErrorBytes, @ErrorBytes
+			union 
+			select 156, @AdditionalDecodingInfo, @AdditionalDecodingInfo
+			union 
+			select 196, @descriptor, @descriptor 
+		) p 
+	
+	select [DecodingId],[CreatedOn],[PatternId],[Keys],[VinSchemaId],[WmiId],[ElementId],[AttributeId],[Value],[Source],[Priority],[TobeQCed]
+	from @DecodingItem
+END
