@@ -86,10 +86,9 @@ BEGIN
             @includeNotPublicilyAvailable = @includeNotPublicilyAvailable,
             @ReturnCode = @ReturnCode OUTPUT;
 
-        -- Debugging: Print the vehicle descriptor
-        DECLARE @vehicleDescriptor VARCHAR(100);
-        SELECT TOP 1 @vehicleDescriptor = Value FROM #DecodedVINs WHERE ElementId = 196;
-        PRINT 'Vehicle Descriptor: ' + @vehicleDescriptor;
+        -- Get the vehicle descriptor
+        DECLARE @vehicleDescriptor VARCHAR(17);
+        SET @vehicleDescriptor = dbo.fVinDescriptor(@vin);
 
         -- Insert the results into the vin_batch_output table
         INSERT INTO vin_batch_output (vin, vehicle_descriptor, element, value)
@@ -119,6 +118,32 @@ GO
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
+GO
+
+USE [vin_decoder]
+GO
+/****** Object:  UserDefinedFunction [dbo].[fVinDescriptor]    Script Date: 7/29/2025 3:48:24 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER function [dbo].[fVinDescriptor]
+(
+	@vin varchar(17)
+)
+RETURNS varchar(17)
+AS
+BEGIN
+	DECLARE @vehicleDescriptor varchar(17)
+	set @vin = left(ltrim(rtrim(@VIN)) + '*****************', 17)
+	set @vin = STUFF(@vin, 9, 1, '*')
+
+	set @vehicleDescriptor = left(@vin, 11)
+	if SUBSTRING(@VIN, 3, 1) = '9'
+		set @vehicleDescriptor = left(@vin, 14)
+
+	return upper(@vehicleDescriptor)
+END
 GO
 
 ALTER PROCEDURE [dbo].[spVinDecode_Core]
