@@ -1,151 +1,33 @@
 USE [vin_decoder]
 GO
-
-/****** Object:  StoredProcedure [dbo].[spVinDecode_FromFile]    Script Date: 7/22/2025 10:00:00 PM ******/
+/****** Object:  StoredProcedure [dbo].[spVinDecode]    Script Date: 7/29/2025 4:30:00 PM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
 GO
-
-CREATE PROCEDURE [dbo].[spVinDecode_FromFile]
+CREATE PROCEDURE [dbo].[spVinDecode]
+	@vin varchar(17)
 AS
 BEGIN
-    SET NOCOUNT ON;
+	-- SET NOCOUNT ON added to prevent extra result sets from
+	-- interfering with SELECT statements.
+	SET NOCOUNT ON;
 
-    -- Create a temporary table to store the VINs
-    CREATE TABLE #VINs (
-        vin VARCHAR(17)
-    );
-
-    -- Create a temporary table to store the results
-    CREATE TABLE #DecodedVINs (
-        [DecodingId] INT,
-        [CreatedOn] DATETIME,
-        [PatternId] INT,
-        [Keys] VARCHAR(50),
-        [VinSchemaId] INT,
-        [WmiId] INT,
-        [ElementId] INT,
-        [AttributeId] VARCHAR(500),
-        [Value] VARCHAR(500),
-        [Source] VARCHAR(50),
-        [Priority] INT,
-        [TobeQCed] BIT
-    );
-
-    -- Insert the data from the vins_to_decode table into the temporary table
-    INSERT INTO #VINs (vin)
-    SELECT vin FROM vins_to_decode;
-
-    -- Declare variables for the cursor
-    DECLARE @vin VARCHAR(17),
-            @pass INT,
-            @modelYear INT,
-            @modelYearSource VARCHAR(20),
-            @conclusive BIT,
-            @Error12 BIT,
-            @includeAll BIT,
-            @includePrivate BIT,
-            @includeNotPublicilyAvailable BIT,
-            @ReturnCode VARCHAR(100);
-
-    -- Create a cursor to loop through the VINs
-    DECLARE vin_cursor CURSOR FOR
-    SELECT vin FROM #VINs;
-
-    OPEN vin_cursor;
-
-    FETCH NEXT FROM vin_cursor INTO @vin;
-
-    WHILE @@FETCH_STATUS = 0
-    BEGIN
-        -- Set the parameters for the spVinDecode_Core procedure
-        SET @pass = 1;
-        SET @modelYear = NULL;
-        SET @modelYearSource = '';
-        SET @conclusive = 0;
-        SET @Error12 = 0;
-        SET @includeAll = 1;
-        SET @includePrivate = 1;
-        SET @includeNotPublicilyAvailable = 1;
-
-        -- Clear the temp table for each VIN
-        DELETE FROM #DecodedVINs;
-
-        -- Execute the original stored procedure for each VIN and insert the results into the temp table
-        INSERT INTO #DecodedVINs
-        EXEC [dbo].[spVinDecode_Core]
-            @pass = @pass,
-            @vin = @vin,
-            @modelYear = @modelYear,
-            @modelYearSource = @modelYearSource,
-            @conclusive = @conclusive,
-            @Error12 = @Error12,
-            @includeAll = @includeAll,
-            @includePrivate = @includePrivate,
-            @includeNotPublicilyAvailable = @includeNotPublicilyAvailable,
-            @ReturnCode = @ReturnCode OUTPUT;
-
-        -- Get the vehicle descriptor
-        DECLARE @vehicleDescriptor VARCHAR(17);
-        SET @vehicleDescriptor = dbo.fVinDescriptor(@vin);
-
-        -- Insert the results into the vin_batch_output table
-        INSERT INTO vin_batch_output (vin, vehicle_descriptor, element, value)
-        SELECT
-            @vin,
-            @vehicleDescriptor,
-            e.Name,
-            d.Value
-        FROM
-            #DecodedVINs d
-        JOIN
-            Element e ON d.ElementId = e.Id;
-
-        FETCH NEXT FROM vin_cursor INTO @vin;
-    END
-
-    CLOSE vin_cursor;
-    DEALLOCATE vin_cursor;
-
-    -- Drop the temporary tables
-    DROP TABLE #VINs;
-    DROP TABLE #DecodedVINs;
+    -- Insert statements for procedure here
+	SELECT        d.vin, d.element, d.value
+	FROM            dbo.vin_decode_output AS d INNER JOIN
+							 dbo.vin_decode_elements AS e ON d.element = e.element
+	WHERE        (d.vin = @vin)
+	ORDER BY e.sort_order
 END
 GO
-
-/****** Object:  StoredProcedure [dbo].[spVinDecode_Core]    Script Date: 7/22/2025 9:56:05 PM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-
 USE [vin_decoder]
 GO
-/****** Object:  UserDefinedFunction [dbo].[fVinDescriptor]    Script Date: 7/29/2025 3:48:24 PM ******/
+/****** Object:  StoredProcedure [dbo].[spVinDecode_Core]    Script Date: 7/29/2025 4:30:00 PM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
 GO
-ALTER function [dbo].[fVinDescriptor]
-(
-	@vin varchar(17)
-)
-RETURNS varchar(17)
-AS
-BEGIN
-	DECLARE @vehicleDescriptor varchar(17)
-	set @vin = left(ltrim(rtrim(@VIN)) + '*****************', 17)
-	set @vin = STUFF(@vin, 9, 1, '*')
-
-	set @vehicleDescriptor = left(@vin, 11)
-	if SUBSTRING(@VIN, 3, 1) = '9'
-		set @vehicleDescriptor = left(@vin, 14)
-
-	return upper(@vehicleDescriptor)
-END
-GO
-
 ALTER PROCEDURE [dbo].[spVinDecode_Core]
 	@pass int, 
 	@vin varchar(17), 
@@ -753,3 +635,64 @@ declare
 	select [DecodingId],[CreatedOn],[PatternId],[Keys],[VinSchemaId],[WmiId],[ElementId],[AttributeId],[Value],[Source],[Priority],[TobeQCed]
 	from @DecodingItem
 END
+GO
+USE [vin_decoder]
+GO
+/****** Object:  StoredProcedure [dbo].[spVinDecode_Batch]    Script Date: 7/29/2025 4:45:00 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[spVinDecode_Batch]
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Create a temporary table to store the VINs
+    CREATE TABLE #VINs (vin VARCHAR(17));
+
+    -- Insert the VINs from the vins_to_decode table into the temporary table
+    INSERT INTO #VINs (vin)
+    SELECT vin FROM vins_to_decode;
+
+    -- Declare variables for the cursor
+    DECLARE @vin VARCHAR(17);
+
+    -- Create a cursor to loop through the VINs
+    DECLARE vin_cursor CURSOR FOR
+    SELECT vin FROM #VINs;
+
+    OPEN vin_cursor;
+
+    FETCH NEXT FROM vin_cursor INTO @vin;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        -- Create a temporary table to store the results of the spVinDecode procedure
+        CREATE TABLE #DecodedVIN (
+            vin VARCHAR(255),
+            element VARCHAR(255),
+            value VARCHAR(255)
+        );
+
+        -- Execute the original stored procedure for each VIN and insert the results into the temp table
+        INSERT INTO #DecodedVIN
+        EXEC [dbo].[spVinDecode] @vin = @vin;
+
+        -- Insert the results into the vin_batch_output table
+        INSERT INTO vin_batch_output (vin, element, value)
+        SELECT vin, element, value FROM #DecodedVIN;
+
+        -- Drop the temporary table
+        DROP TABLE #DecodedVIN;
+
+        FETCH NEXT FROM vin_cursor INTO @vin;
+    END
+
+    CLOSE vin_cursor;
+    DEALLOCATE vin_cursor;
+
+    -- Drop the temporary table
+    DROP TABLE #VINs;
+END
+GO
