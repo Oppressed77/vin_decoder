@@ -1,11 +1,6 @@
 USE [vin_decoder]
 GO
 
-EXEC sp_configure 'show advanced options', 1;
-RECONFIGURE;
-EXEC sp_configure 'Ad Hoc Distributed Queries', 1;
-RECONFIGURE;
-GO
 /****** Object:  StoredProcedure [dbo].[spVinDecode_FromFile]    Script Date: 7/22/2025 10:00:00 PM ******/
 SET ANSI_NULLS ON
 GO
@@ -46,15 +41,23 @@ BEGIN
         [TobeQCed] BIT
     );
 
-    -- Use OPENROWSET to load the VINs from the file
+    -- Use BULK INSERT to load the VINs from the file
     BEGIN TRY
-        INSERT INTO #VINs
-        SELECT * FROM OPENROWSET('Microsoft.ACE.OLEDB.12.0',
-        'Text;Database=c:\decoder;HDR=NO', 'SELECT * FROM vins.txt');
+        BULK INSERT #VINs (vin, pass, modelYear, modelYearSource, conclusive, Error12, includeAll, includePrivate, includeNotPublicilyAvailable)
+        FROM 'c:\decoder\vins.txt'
+        WITH (
+            FIELDTERMINATOR = ',',
+            ROWTERMINATOR = '\n'
+        );
     END TRY
     BEGIN CATCH
-        -- Handle exceptions, e.g., file not found, permissions issues
-        PRINT 'Error loading VINs from file: ' + ERROR_MESSAGE();
+        PRINT 'Error in BULK INSERT operation.';
+        PRINT 'Error Number: ' + CAST(ERROR_NUMBER() AS VARCHAR(10));
+        PRINT 'Error Severity: ' + CAST(ERROR_SEVERITY() AS VARCHAR(10));
+        PRINT 'Error State: ' + CAST(ERROR_STATE() AS VARCHAR(10));
+        PRINT 'Error Procedure: ' + ISNULL(ERROR_PROCEDURE(), '');
+        PRINT 'Error Line: ' + CAST(ERROR_LINE() AS VARCHAR(10));
+        PRINT 'Error Message: ' + ERROR_MESSAGE();
         RETURN;
     END CATCH
 
