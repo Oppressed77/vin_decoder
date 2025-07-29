@@ -1,0 +1,11 @@
+14.0
+9
+1       SQLCHAR             0       17      ","      1     vin                                ""
+2       SQLINT              0       4       ","      2     pass                              ""
+3       SQLINT              0       4       ","      3     modelYear                         ""
+4       SQLCHAR             0       20      ","      4     modelYearSource                   ""
+5       SQLBIT              0       1       ","      5     conclusive                        ""
+6       SQLBIT              0       1       ","      6     Error12                           ""
+7       SQLBIT              0       1       ","      7     includeAll                        ""
+8       SQLBIT              0       1       ","      8     includePrivate                    ""
+9       SQLBIT              0       1       "\r\n"   9     includeNotPublicilyAvailable      ""
