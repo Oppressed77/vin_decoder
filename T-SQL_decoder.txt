@@ -45,7 +45,8 @@ BEGIN
         BULK INSERT #VINs
         FROM 'c:\decoder\vins.txt'
         WITH (
-            FORMATFILE = 'c:\decoder\vins.fmt'
+            FIELDTERMINATOR = ',',
+            ROWTERMINATOR = '\n'
         );
     END TRY
     BEGIN CATCH
