@@ -13,15 +13,15 @@ BEGIN
 
     -- Create a temporary table to store the VINs and their parameters
     CREATE TABLE #VINs (
-        vin VARCHAR(17),
-        pass INT,
-        modelYear INT,
-        modelYearSource VARCHAR(20),
-        conclusive BIT,
-        Error12 BIT,
-        includeAll BIT,
-        includePrivate BIT,
-        includeNotPublicilyAvailable BIT
+        vin VARCHAR(500),
+        pass VARCHAR(500),
+        modelYear VARCHAR(500),
+        modelYearSource VARCHAR(500),
+        conclusive VARCHAR(500),
+        Error12 VARCHAR(500),
+        includeAll VARCHAR(500),
+        includePrivate VARCHAR(500),
+        includeNotPublicilyAvailable VARCHAR(500)
     );
 
     -- Create a temporary table to store the results
