@@ -1,6 +1,19 @@
 USE [vin_decoder]
 GO
 
+CREATE VIEW vins_view AS
+SELECT
+    vin = CAST(NULL AS VARCHAR(500)),
+    pass = CAST(NULL AS VARCHAR(500)),
+    modelYear = CAST(NULL AS VARCHAR(500)),
+    modelYearSource = CAST(NULL AS VARCHAR(500)),
+    conclusive = CAST(NULL AS VARCHAR(500)),
+    Error12 = CAST(NULL AS VARCHAR(500)),
+    includeAll = CAST(NULL AS VARCHAR(500)),
+    includePrivate = CAST(NULL AS VARCHAR(500)),
+    includeNotPublicilyAvailable = CAST(NULL AS VARCHAR(500))
+GO
+
 /****** Object:  StoredProcedure [dbo].[spVinDecode_FromFile]    Script Date: 7/22/2025 10:00:00 PM ******/
 SET ANSI_NULLS ON
 GO
@@ -43,12 +56,16 @@ BEGIN
 
     -- Use BULK INSERT to load the VINs from the file
     BEGIN TRY
-        BULK INSERT #VINs (vin, pass, modelYear, modelYearSource, conclusive, Error12, includeAll, includePrivate, includeNotPublicilyAvailable)
+        BULK INSERT vins_view
         FROM 'c:\decoder\vins.txt'
         WITH (
             FIELDTERMINATOR = ',',
             ROWTERMINATOR = '\n'
         );
+
+        INSERT INTO #VINs
+        SELECT * FROM vins_view;
+
     END TRY
     BEGIN CATCH
         PRINT 'Error in BULK INSERT operation.';
