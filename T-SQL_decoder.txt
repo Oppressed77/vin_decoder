@@ -89,14 +89,16 @@ BEGIN
         -- Insert the results into the vin_batch_output table
         INSERT INTO vin_batch_output (vin, vehicle_descriptor, element, value)
         SELECT
-            @vin,
+            v.vin,
             (SELECT TOP 1 Value FROM #DecodedVINs WHERE ElementId = 196),
             e.Name,
             d.Value
         FROM
             #DecodedVINs d
         JOIN
-            Element e ON d.ElementId = e.Id;
+            Element e ON d.ElementId = e.Id
+        CROSS JOIN
+            (SELECT @vin as vin) v;
 
         FETCH NEXT FROM vin_cursor INTO @vin;
     END
