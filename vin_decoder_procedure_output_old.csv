@@ -1,0 +1,66 @@
+﻿GroupName,Variable,Value,PatternId,VinSchemaId,Keys,ElementId,AttributeId,CreatedOn,WmiId,Code,DataType,Decode,Source,ToBeQCd
+NULL,Suggested VIN,,NULL,NULL,,142,,NULL,NULL,SuggestedVIN,string,Decoding,Corrections,NULL
+NULL,Error Code,0,NULL,NULL,,143,0,NULL,NULL,ErrorCode,lookup,Decoding,Corrections,NULL
+NULL,Possible Values,,NULL,NULL,,144,,NULL,NULL,PossibleValues,string,Decoding,Corrections,NULL
+NULL,Additional Error Text,NULL,NULL,NULL,,156,NULL,NULL,NULL,AdditionalErrorText,string,Decoding,Corrections,NULL
+NULL,Error Text,0 - VIN decoded clean. Check Digit (9th position) is correct,NULL,NULL,,191,0 - VIN decoded clean. Check Digit (9th position) is correct,NULL,NULL,ErrorText,string,Decoding,Corrections,NULL
+NULL,Vehicle Descriptor,7SAYGDEE*PA,NULL,NULL,,196,7SAYGDEE*PA,NULL,NULL,VehicleDescriptor,string,Decoding,Corrections,NULL
+General,Make,TESLA,1852961,24751,Y,26,441,NULL,NULL,Make,lookup,"WMI, Pattern",pattern - model,NULL
+General,Manufacturer Name,"TESLA, INC.",NULL,NULL,7SA,27,955,NULL,12871,Manufacturer,lookup,WMI,Manuf. Name,NULL
+General,Model,Model Y,1852961,24751,Y,28,27027,51:42.5,12871,Model,lookup,Pattern,Pattern,NULL
+General,Model Year,2023,NULL,NULL,***X*|Y,29,2023,NULL,NULL,ModelYear,int,"WMI, Input",ModelYear,NULL
+General,Plant City,AUSTIN,1852940,24751,*****|*A,31,AUSTIN,47:14.8,12871,PlantCity,string,Pattern,Pattern,NULL
+General,Vehicle Type,MULTIPURPOSE PASSENGER VEHICLE (MPV),NULL,NULL,7SA,39,7,53:05.3,12871,VehicleType,lookup,WMI,VehType,NULL
+General,Plant Country,UNITED STATES (USA),1852941,24751,*****|*A,75,6,47:14.8,12871,PlantCountry,lookup,Pattern,Pattern,NULL
+General,Plant State,TEXAS,1852942,24751,*****|*A,77,TEXAS,47:14.9,12871,PlantState,string,Pattern,Pattern,NULL
+Exterior / Body,Body Class,Sport Utility Vehicle (SUV)/Multi-Purpose Vehicle (MPV),1852949,24751,[XY]G,5,7,50:27.7,12871,BodyClass,lookup,Pattern,Pattern,NULL
+Exterior / Body,Doors,5,1852950,24751,[XY]G,14,5,50:27.7,12871,Doors,int,Pattern,Pattern,NULL
+Exterior / Dimension,Gross Vehicle Weight Rating From,"Class 1D: 5,001 - 6,000 lb (2,268 - 2,722 kg)",1852951,24751,[XY]G,25,13,50:27.7,12871,GVWR,lookup,Pattern,Pattern,NULL
+Exterior / Trailer,Trailer Type Connection,Not Applicable,NULL,NULL,NULL,116,0,26:30.6,NULL,TrailerType,lookup,Pattern,Default,NULL
+Exterior / Trailer,Trailer Body Type,Not Applicable,NULL,NULL,NULL,117,0,26:30.6,NULL,TrailerBodyType,lookup,Pattern,Default,NULL
+Exterior / Motorcycle,Custom Motorcycle Type,Not Applicable,NULL,NULL,NULL,151,0,26:30.6,NULL,CustomMotorcycleType,lookup,Pattern,Default,NULL
+Exterior / Motorcycle,Motorcycle Suspension Type,Not Applicable,NULL,NULL,NULL,152,0,26:30.6,NULL,MotorcycleSuspensionType,lookup,Pattern,Default,NULL
+Exterior / Motorcycle,Motorcycle Chassis Type,Not Applicable,NULL,NULL,NULL,153,0,26:30.6,NULL,MotorcycleChassisType,lookup,Pattern,Default,NULL
+Exterior / Bus,Bus Floor Configuration Type,Not Applicable,NULL,NULL,NULL,148,0,26:30.6,NULL,BusFloorConfigType,lookup,Pattern,Default,NULL
+Exterior / Bus,Bus Type,Not Applicable,NULL,NULL,NULL,149,0,26:30.6,NULL,BusType,lookup,Pattern,Default,NULL
+Interior,Steering Location,Left-Hand Drive (LHD),1852952,24751,[XY]G,36,1,50:27.8,12871,SteeringLocation,lookup,Pattern,Pattern,NULL
+Interior / Seat,Number of Seats,5,14433,4598,,33,5,23:31.8,NULL,Seats,int,Pattern,Vehicle Specs,0
+Interior / Seat,Number of Seat Rows,2,14433,4598,,61,2,23:31.9,NULL,SeatRows,int,Pattern,Vehicle Specs,0
+Mechanical / Transmission,Transmission Style,Automatic,14433,4598,,37,2,23:31.9,NULL,TransmissionStyle,lookup,Pattern,Vehicle Specs,0
+Mechanical / Transmission,Transmission Speeds,1,14433,4598,,63,1,23:31.9,NULL,TransmissionSpeeds,int,Pattern,Vehicle Specs,0
+Mechanical / Battery,Battery Type,Lithium-Ion/Li-Ion,14433,4598,,2,3,23:31.7,NULL,BatteryType,lookup,Pattern,Vehicle Specs,0
+Mechanical / Battery,EV Drive Unit,Dual Motor,1852996,24751,Y***E,72,1,58:33.3,12871,EVDriveUnit,lookup,Pattern,Pattern,NULL
+Engine,Fuel Type - Primary,Electric,1852943,24751,***E,24,2,47:46.4,12871,FuelTypePrimary,lookup,Pattern,Pattern,NULL
+Engine,Electrification Level,BEV (Battery Electric Vehicle),1852944,24751,***E,126,4,47:46.4,12871,ElectrificationLevel,lookup,Pattern,Pattern,NULL
+Engine,Other Engine Info,Dual Motor – Standard,1852997,24751,Y***E,129,Dual Motor – Standard,58:33.3,12871,OtherEngineInfo,string,Pattern,Pattern,NULL
+Passive Safety System,Seat Belt Type,Manual,1852988,24751,[XY]*D,79,1,56:33.4,12871,SeatBeltsAll,lookup,Pattern,Pattern,NULL
+Passive Safety System,Other Restraint System Info,"Type 2 Manual Seatbelts (FR, SR*3) / PODS",1852990,24751,[XY]*D,121,"Type 2 Manual Seatbelts (FR, SR*3) / PODS",56:33.4,12871,OtherRestraintSystemInfo,string,Pattern,Pattern,NULL
+Passive Safety System / Air Bag Location,Front Air Bag Locations,1st Row (Driver and Passenger),1852986,24751,[XY]*D,65,3,56:33.4,12871,AirBagLocFront,lookup,Pattern,Pattern,NULL
+Passive Safety System / Air Bag Location,Knee Air Bag Locations,1st Row (Driver and Passenger),1852987,24751,[XY]*D,69,3,56:33.4,12871,AirBagLocKnee,lookup,Pattern,Pattern,NULL
+Passive Safety System / Air Bag Location,Side Air Bag Locations,1st and 2nd Rows,1852989,24751,[XY]*D,107,4,56:33.4,12871,AirBagLocSide,lookup,Pattern,Pattern,NULL
+Active Safety System,Anti-lock Braking System (ABS),Standard,14433,4598,,86,1,23:32.0,NULL,ABS,lookup,Pattern,Vehicle Specs,0
+Active Safety System,Electronic Stability Control (ESC),Standard,14433,4598,,99,1,23:32.0,NULL,ESC,lookup,Pattern,Vehicle Specs,0
+Active Safety System,Traction Control,Standard,14433,4598,,100,1,23:32.0,NULL,TractionControl,lookup,Pattern,Vehicle Specs,0
+Active Safety System,Tire Pressure Monitoring System (TPMS) Type,Direct,14433,4598,,168,1,23:32.2,NULL,TPMS,lookup,Pattern,Vehicle Specs,0
+Active Safety System,Auto-Reverse System for Windows and Sunroofs,Standard,14433,4598,,172,1,23:32.3,NULL,AutoReverseSystem,lookup,Pattern,Vehicle Specs,0
+Active Safety System,Automatic Pedestrian Alerting Sound (for Hybrid and EV only),Standard,14433,4598,,173,1,23:32.3,NULL,AutomaticPedestrianAlertingSound,lookup,Pattern,Vehicle Specs,0
+Active Safety System,Event Data Recorder (EDR),Standard,14433,4598,,175,1,23:32.3,NULL,EDR,lookup,Pattern,Vehicle Specs,0
+Active Safety System,Keyless Ignition,Standard,14433,4598,,176,1,23:32.3,NULL,KeylessIgnition,lookup,Pattern,Vehicle Specs,0
+Active Safety System / Maintaining Safe Distance,Adaptive Cruise Control (ACC),Standard,14433,4598,,81,1,23:31.9,NULL,AdaptiveCruiseControl,lookup,Pattern,Vehicle Specs,0
+Active Safety System / Forward Collision Prevention,Crash Imminent Braking (CIB),Standard,14433,4598,,87,1,23:32.0,NULL,CIB,lookup,Pattern,Vehicle Specs,0
+Active Safety System / Forward Collision Prevention,Forward Collision Warning (FCW),Standard,14433,4598,,101,1,23:32.0,NULL,ForwardCollisionWarning,lookup,Pattern,Vehicle Specs,0
+Active Safety System / Forward Collision Prevention,Pedestrian Automatic Emergency Braking (PAEB),Standard,14433,4598,,171,1,23:32.2,NULL,PedestrianAutomaticEmergencyBraking,lookup,Pattern,Vehicle Specs,0
+Active Safety System / Lane and Side Assist,Blind Spot Warning (BSW),Standard,14433,4598,,88,1,23:32.0,NULL,BlindSpotMon,lookup,Pattern,Vehicle Specs,0
+Active Safety System / Lane and Side Assist,Lane Departure Warning (LDW),Standard,14433,4598,,102,1,23:32.1,NULL,LaneDepartureWarning,lookup,Pattern,Vehicle Specs,0
+Active Safety System / Lane and Side Assist,Lane Keeping Assistance (LKA),Standard,14433,4598,,103,1,23:32.2,NULL,LaneKeepSystem,lookup,Pattern,Vehicle Specs,0
+Active Safety System / Lane and Side Assist,Blind Spot Intervention (BSI),Standard,14433,4598,,193,1,23:32.5,NULL,BlindSpotIntervention,lookup,Pattern,Vehicle Specs,0
+Active Safety System / Lane and Side Assist,Lane Centering Assistance,Optional,14433,4598,,194,3,23:32.5,NULL,LaneCenteringAssistance,lookup,Pattern,Vehicle Specs,0
+Active Safety System / Backing Up and Parking,Backup Camera,Standard,14433,4598,,104,1,23:32.2,NULL,RearVisibilitySystem,lookup,Pattern,Vehicle Specs,0
+Active Safety System / Backing Up and Parking,Parking Assist,Optional,14433,4598,,105,3,23:32.2,NULL,ParkAssist,lookup,Pattern,Vehicle Specs,0
+Active Safety System / Backing Up and Parking,Rear Cross Traffic Alert,Standard,14433,4598,,183,1,23:32.5,NULL,RearCrossTrafficAlert,lookup,Pattern,Vehicle Specs,0
+Active Safety System / Backing Up and Parking,Rear Automatic Emergency Braking,Standard,14433,4598,,192,1,23:32.5,NULL,RearAutomaticEmergencyBraking,lookup,Pattern,Vehicle Specs,0
+Active Safety System / 911 Notification,Automatic Crash Notification (ACN) / Advanced Automatic Crash Notification (AACN),Standard,14433,4598,,174,1,23:32.3,NULL,CAN_AACN,lookup,Pattern,Vehicle Specs,0
+Active Safety System / Lighting Technologies,Daytime Running Light (DRL),Standard,14433,4598,,177,1,23:32.3,NULL,DaytimeRunningLight,lookup,Pattern,Vehicle Specs,0
+Active Safety System / Lighting Technologies,Headlamp Light Source,LED,14433,4598,,178,3,23:32.5,NULL,LowerBeamHeadlampLightSource,lookup,Pattern,Vehicle Specs,0
+Active Safety System / Lighting Technologies,Semiautomatic Headlamp Beam Switching,Standard,14433,4598,,179,1,23:32.5,NULL,SemiautomaticHeadlampBeamSwitching,lookup,Pattern,Vehicle Specs,0
+Active Safety System / Lighting Technologies,Adaptive Driving Beam (ADB),Standard,14433,4598,,180,1,23:32.5,NULL,AdaptiveDrivingBeam,lookup,Pattern,Vehicle Specs,0
