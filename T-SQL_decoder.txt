@@ -86,11 +86,16 @@ BEGIN
             @includeNotPublicilyAvailable = @includeNotPublicilyAvailable,
             @ReturnCode = @ReturnCode OUTPUT;
 
+        -- Debugging: Print the vehicle descriptor
+        DECLARE @vehicleDescriptor VARCHAR(100);
+        SELECT TOP 1 @vehicleDescriptor = Value FROM #DecodedVINs WHERE ElementId = 196;
+        PRINT 'Vehicle Descriptor: ' + @vehicleDescriptor;
+
         -- Insert the results into the vin_batch_output table
         INSERT INTO vin_batch_output (vin, vehicle_descriptor, element, value)
         SELECT
             @vin,
-            (SELECT TOP 1 Value FROM #DecodedVINs WHERE ElementId = 196),
+            @vehicleDescriptor,
             e.Name,
             d.Value
         FROM
