@@ -12,17 +12,9 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Create a temporary table to store the VINs and their parameters
+    -- Create a temporary table to store the VINs
     CREATE TABLE #VINs (
-        vin VARCHAR(500),
-        pass VARCHAR(500),
-        modelYear VARCHAR(500),
-        modelYearSource VARCHAR(500),
-        conclusive VARCHAR(500),
-        Error12 VARCHAR(500),
-        includeAll VARCHAR(500),
-        includePrivate VARCHAR(500),
-        includeNotPublicilyAvailable VARCHAR(500)
+        vin VARCHAR(17)
     );
 
     -- Create a temporary table to store the results
@@ -42,8 +34,8 @@ BEGIN
     );
 
     -- Insert the data from the vins_to_decode table into the temporary table
-    INSERT INTO #VINs
-    SELECT * FROM vins_to_decode;
+    INSERT INTO #VINs (vin)
+    SELECT vin FROM vins_to_decode;
 
     -- Declare variables for the cursor
     DECLARE @vin VARCHAR(17),
@@ -59,14 +51,24 @@ BEGIN
 
     -- Create a cursor to loop through the VINs
     DECLARE vin_cursor CURSOR FOR
-    SELECT vin, pass, modelYear, modelYearSource, conclusive, Error12, includeAll, includePrivate, includeNotPublicilyAvailable FROM #VINs;
+    SELECT vin FROM #VINs;
 
     OPEN vin_cursor;
 
-    FETCH NEXT FROM vin_cursor INTO @vin, @pass, @modelYear, @modelYearSource, @conclusive, @Error12, @includeAll, @includePrivate, @includeNotPublicilyAvailable;
+    FETCH NEXT FROM vin_cursor INTO @vin;
 
     WHILE @@FETCH_STATUS = 0
     BEGIN
+        -- Set the parameters for the spVinDecode_Core procedure
+        SET @pass = 1;
+        SET @modelYear = NULL;
+        SET @modelYearSource = '';
+        SET @conclusive = 0;
+        SET @Error12 = 0;
+        SET @includeAll = 1;
+        SET @includePrivate = 1;
+        SET @includeNotPublicilyAvailable = 1;
+
         -- Clear the temp table for each VIN
         DELETE FROM #DecodedVINs;
 
@@ -96,7 +98,7 @@ BEGIN
         JOIN
             Element e ON d.ElementId = e.Id;
 
-        FETCH NEXT FROM vin_cursor INTO @vin, @pass, @modelYear, @modelYearSource, @conclusive, @Error12, @includeAll, @includePrivate, @includeNotPublicilyAvailable;
+        FETCH NEXT FROM vin_cursor INTO @vin;
     END
 
     CLOSE vin_cursor;
