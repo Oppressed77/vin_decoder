@@ -1,19 +1,6 @@
 USE [vin_decoder]
 GO
 
-CREATE VIEW vins_view AS
-SELECT
-    vin = CAST(NULL AS VARCHAR(500)),
-    pass = CAST(NULL AS VARCHAR(500)),
-    modelYear = CAST(NULL AS VARCHAR(500)),
-    modelYearSource = CAST(NULL AS VARCHAR(500)),
-    conclusive = CAST(NULL AS VARCHAR(500)),
-    Error12 = CAST(NULL AS VARCHAR(500)),
-    includeAll = CAST(NULL AS VARCHAR(500)),
-    includePrivate = CAST(NULL AS VARCHAR(500)),
-    includeNotPublicilyAvailable = CAST(NULL AS VARCHAR(500))
-GO
-
 /****** Object:  StoredProcedure [dbo].[spVinDecode_FromFile]    Script Date: 7/22/2025 10:00:00 PM ******/
 SET ANSI_NULLS ON
 GO
@@ -54,29 +41,9 @@ BEGIN
         [TobeQCed] BIT
     );
 
-    -- Use BULK INSERT to load the VINs from the file
-    BEGIN TRY
-        BULK INSERT vins_view
-        FROM 'c:\decoder\vins.txt'
-        WITH (
-            FIELDTERMINATOR = ',',
-            ROWTERMINATOR = '\n'
-        );
-
-        INSERT INTO #VINs
-        SELECT * FROM vins_view;
-
-    END TRY
-    BEGIN CATCH
-        PRINT 'Error in BULK INSERT operation.';
-        PRINT 'Error Number: ' + CAST(ERROR_NUMBER() AS VARCHAR(10));
-        PRINT 'Error Severity: ' + CAST(ERROR_SEVERITY() AS VARCHAR(10));
-        PRINT 'Error State: ' + CAST(ERROR_STATE() AS VARCHAR(10));
-        PRINT 'Error Procedure: ' + ISNULL(ERROR_PROCEDURE(), '');
-        PRINT 'Error Line: ' + CAST(ERROR_LINE() AS VARCHAR(10));
-        PRINT 'Error Message: ' + ERROR_MESSAGE();
-        RETURN;
-    END CATCH
+    -- Insert the data from the vins_to_decode table into the temporary table
+    INSERT INTO #VINs
+    SELECT * FROM vins_to_decode;
 
     -- Declare variables for the cursor
     DECLARE @vin VARCHAR(17),
@@ -100,6 +67,9 @@ BEGIN
 
     WHILE @@FETCH_STATUS = 0
     BEGIN
+        -- Clear the temp table for each VIN
+        DELETE FROM #DecodedVINs;
+
         -- Execute the original stored procedure for each VIN and insert the results into the temp table
         INSERT INTO #DecodedVINs
         EXEC [dbo].[spVinDecode_Core]
@@ -114,14 +84,23 @@ BEGIN
             @includeNotPublicilyAvailable = @includeNotPublicilyAvailable,
             @ReturnCode = @ReturnCode OUTPUT;
 
+        -- Insert the results into the vin_batch_output table
+        INSERT INTO vin_batch_output (vin, vehicle_descriptor, element, value)
+        SELECT
+            @vin,
+            (SELECT TOP 1 Value FROM #DecodedVINs WHERE ElementId = 196),
+            e.Name,
+            d.Value
+        FROM
+            #DecodedVINs d
+        JOIN
+            Element e ON d.ElementId = e.Id;
+
         FETCH NEXT FROM vin_cursor INTO @vin, @pass, @modelYear, @modelYearSource, @conclusive, @Error12, @includeAll, @includePrivate, @includeNotPublicilyAvailable;
     END
 
     CLOSE vin_cursor;
     DEALLOCATE vin_cursor;
-
-    -- Return all the decoded VINs in a single result set
-    SELECT * FROM #DecodedVINs;
 
     -- Drop the temporary tables
     DROP TABLE #VINs;
